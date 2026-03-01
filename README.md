@@ -58,11 +58,29 @@ El flujo de transformación asegura que la heterogeneidad de las fuentes de dato
 * **PAM (Partitioning Around Medoids)**: Utilización de un algoritmo robusto frente a valores atípicos para definir $K=3$ clústeres.
 * **Validación de Wilks' Lambda**: Evaluación de la significancia de la partición mediante la reducción de la varianza no explicada tras la reducción de dimensionalidad por PCA.
 
-### Auditoría de Calidad y Seguridad (Code Review
+### Auditoría de Calidad y Seguridad (Code Review)
 **Análisis del Script** `03_test_validation.R`
 * **Gestión de Rutas**: El script utiliza rutas absolutas (`C:/Users/...`). En un entorno de microservicios o CI/CD (Continuous Integration), esto provocará fallos de ejecución. Se recomienda el uso de rutas relativas basadas en el directorio del proyecto.
 * **Integridad de Datos**: La validación de valores nulos y la consistencia de clústeres en PAM ($K=3$) son correctas y siguen las especificaciones del modelo.
 * **Lógica de Negocio**: La prueba de Wilks' Lambda es fundamental. Al verificar que disminuye monótonamente con $K$, se asegura que la partición captura la varianza de forma incremental, validando la eficacia del PCA previo.
+
+### Ejecución de Pruebas con `testthat`
+Parte vital del script `04_test_clustering.R`. El resultado final fue:
+`[ FAIL 0 | WARN 0 | SKIP 0 | PASS 7 ]`
+Esto significa que pasó las 7 pruebas que programadas. Aquí el detalle de lo validado:
+
+#### A. Existencia de archivos (2 pruebas)
+    * Se confirmó que `protein_scaled.rds` (datos normalizados) y `wilks_results.rds` existen en la carpeta `Data/processed`. Si el script de preprocesamiento hubiera fallado, esta prueba te habría avisado.
+
+#### B. Integridad de los datos (2 pruebas)
+    * **Filas**: Se verificó que hay exactamente **25 países** europeos.
+    * **Columnas**: Hay **10 variables** (las fuentes de proteína). Esto asegura que no se perdió información ni se cargó columnas extra (como IDs o nombres) en el modelo.
+
+#### C. Consistencia estadística: Wilks' Lambda (3 pruebas)
+    * **Rango**: Se validó que el estadístico $\Lambda$ de Wilks esté entre $0$ y $1$.
+    * **Tipo**: Nos aseguramos que el resultado sea un número decimal (`double`).
+    * **Tendencia**: Esta es la más importante. Se validó que `diff(wilks) < 0`.
+      * Explicación: A medida que se aumenta el número de clusters ($K$), la variabilidad no explicada debe disminuir. Si el $\Lambda$ de Wilks no bajara al aumentar $K$, el modelo de clasificación no estaría discriminando bien los grupos. Tus datos cumplen con la teoría.
 
 ---
 
@@ -91,31 +109,14 @@ El sistema emplea un enfoque híbrido para garantizar que los clústeres sean ta
 
 ### Resultados del Clustering (PAM/Silhouette)
 Antes de las pruebas, el log muestra una pequeña tabla de resumen del algoritmo **PAM** (Partitioning Around Medoids):
-```text
-Cluster,Size,Ave. Sil. Width
-1,8,0.25
-2,15,0.36
-3,2,0.43
-```
+
+| Cluster | Size | Ave. Sil. Width |
+| 1 | 8 | 0.25 |
+|2 | 15 | 0.36 |
+|3 | 2 | 0.43 |
+
 > **¿Qué significa?** El **Cluster 3** es el más "sólido" o cohesivo (tiene el ancho de silueta más alto, **0.43**), aunque solo tiene 2 países. El **Cluster 2** es el más grande con 15 países y una estructura aceptable (0.36). En general, valores cercanos a 0.5 sugieren una estructura razonable en los datos.
 
-### Ejecución de Pruebas con `testthat`
-Parte vital del script `04_test_clustering.R`. El resultado final fue:
-`[ FAIL 0 | WARN 0 | SKIP 0 | PASS 7 ]`
-Esto significa que pasó las 7 pruebas que programadas. Aquí el detalle de lo validado:
-
-#### A. Existencia de archivos (2 pruebas)
-    * Se confirmó que `protein_scaled.rds` (datos normalizados) y `wilks_results.rds` existen en la carpeta `Data/processed`. Si el script de preprocesamiento hubiera fallado, esta prueba te habría avisado.
-
-#### B. Integridad de los datos (2 pruebas)
-    * **Filas**: Se verificó que hay exactamente **25 países** europeos.
-    * **Columnas**: Hay **10 variables** (las fuentes de proteína). Esto asegura que no se perdió información ni se cargó columnas extra (como IDs o nombres) en el modelo.
-
-#### C. Consistencia estadística: Wilks' Lambda (3 pruebas)
-    * **Rango**: Se validó que el estadístico $\Lambda$ de Wilks esté entre $0$ y $1$.
-    * **Tipo**: Nos aseguramos que el resultado sea un número decimal (`double`).
-    * **Tendencia**: Esta es la más importante. Se validó que `diff(wilks) < 0`.
-      * Explicación: A medida que se aumenta el número de clusters ($K$), la variabilidad no explicada debe disminuir. Si el $\Lambda$ de Wilks no bajara al aumentar $K$, el modelo de clasificación no estaría discriminando bien los grupos. Tus datos cumplen con la teoría.
 
 ---
 
@@ -141,4 +142,4 @@ Esto significa que pasó las 7 pruebas que programadas. Aquí el detalle de lo v
 * **docs:** Creación de README profesional y documentación técnica.
 
 ---
-**Autor:** [iviterirambay](https://github.com/iviterirambay)
+**Autor:** [Irwin Viteri Rambay](https://github.com/iviterirambay)
