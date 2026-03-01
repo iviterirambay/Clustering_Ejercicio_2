@@ -12,25 +12,31 @@ El servicio está diseñado bajo un principio de **desacoplamiento funcional**, 
 ### Diagrama de Flujo Lógico (ASCII)
 
 ```text
-[ DATOS RAW ]          [ PROCESAMIENTO ]          [ ANÁLISIS ]           [ QA & VALIDACIÓN ]          [ OUTPUTS ]
-      |                        |                        |                       |                        |
-      v                        v                        v                       v                        v
- protein.txt  ----->  01_preprocessing.R  ----->  02_clustering.R  ----->  03_test_validation.R  -----> a) Artefactos Finales
- (Ingesta)           - Limpieza (Regex)         - Hierarchical          - Unit Testing (testthat)     - b) Reportes PDF
-                     - Escalado (Z-score)       - K-means / PCA         - Consistencia de Clusters    - c) Modelos Validados
-                     - Persistencia (.rds)      - Wilks' Lambda         - Verificación de Varianza    - d) Zero Technical Debt
+[ INGESTA ]           [ PROCESAMIENTO ]          [ ANÁLISIS ]           [ QA & VALIDACIÓN ]          [ OUTPUTS ]
+      |                      |                       |                        |                        |
+      v                      v                       v                        v                        v
+ protein.txt  ----->  01_preprocessing.R  ----->  02_clustering.R  ----->  04_test_clustering.R  -----> a) Modelos Validados
+ (Data Raw)          - Limpieza (Regex)         - Hierarchical          - Unit Testing (testthat)     - b) Reportes PDF
+                     - Escalado (Z-score)       - PAM (K=3)             - Valid. Wilks' Lambda        - c) Dataset RDS
+                     - Persistencia (.rds)      - PCA Reduction         - Integridad Dimensional      - d) Sync GitHub
 ```
 ---
 
 ## 2. Estructura del Repositorio
 Siguiendo las mejores prácticas para proyectos de análisis de datos en R y estándares:
 
-* `R/`: Lógica central del negocio y scripts de procesamiento.
-* `data/`: Gestión de activos de datos.
-  * `raw/`: Fuente de datos inmutable.
-  * `processed/`: Datos transformados y serializados (.rds, .csv).
+* `R/`: Lógica central y scripts de ejecución secuencial.
+  * `00_conn_r_git.R`: Configuración de entorno y dependencias.
+  * `01_data_preprocessing.R`: ETL, limpieza con Regex y escalado.
+  * `02_clustering_analysis.R`: Modelado estadístico (PAM, Ward.D2).
+* `Data/`: Gestión de activos de datos.
+  * `raw/`: Fuente de datos inmutable [`protein.txt`](https://github.com/iviterirambay/Clustering_Ejercicio_2/blob/main/Data/raw/protein.txt)
+  * `processed/`: Datos transformados y serializados (`.rds, .csv`).
 * `tests/`: Suite de pruebas unitarias automatizadas con el framework testthat.
+  * `testthat/`: Scripts de pruebas unitarias (`04_test_clustering.R`) que aseguran la integridad del modelo.
 * `plots/`: Artefactos visuales generados (PCA, Dendrogramas, Siluetas).
+  * [`hierarchical_trees.pdf`](https://github.com/iviterirambay/Clustering_Ejercicio_2/blob/main/plots/hierarchical_trees.pdf): Dendrogramas de agrupación.
+  * [`pam_analysis.pdf`](https://github.com/iviterirambay/Clustering_Ejercicio_2/blob/main/plots/pam_analysis.pdf): Análisis de siluetas y clusters.
 * `README.md`: Documentación técnica principal.
 
 ---
@@ -68,8 +74,11 @@ El flujo de transformación asegura que la heterogeneidad de las fuentes de dato
 
 2. **Configurar entorno**: Ejecutar [`00_conn_r_git.R`](https://github.com/iviterirambay/Clustering_Ejercicio_2/blob/main/R/00_conn_r_git.R) para inicializar dependencias y variables de entorno.
 3. **Ejecutar el Pipeline**:
-[`01_data_preprocessing.R`](https://github.com/iviterirambay/Clustering_Ejercicio_2/blob/main/R/01_data_preprocessing.R)
-[`02_clustering_analysis.R`](https://github.com/iviterirambay/Clustering_Ejercicio_2/blob/main/R/02_clustering_analysis.R)
+* [`01_data_preprocessing.R`](https://github.com/iviterirambay/Clustering_Ejercicio_2/blob/main/R/01_data_preprocessing.R): Limpieza y escalado.
+* [`02_clustering_analysis.R`](https://github.com/iviterirambay/Clustering_Ejercicio_2/blob/main/R/02_clustering_analysis.R): Generación de modelos y gráficos.
+* [`03_testthat.R`](https://github.com/iviterirambay/Clustering_Ejercicio_2/blob/main/tests/03_testthat.R): Validación de resultados.
+* [`04_test_clustering.R`](https://github.com/iviterirambay/Clustering_Ejercicio_2/blob/main/tests/testthat/04_test_clustering.R): Validación de resultados.
+
 
 ### Motores de Segmentación
 El sistema emplea un enfoque híbrido para garantizar que los clústeres sean tanto estadísticamente significativos como interpretables:
@@ -79,6 +88,34 @@ El sistema emplea un enfoque híbrido para garantizar que los clústeres sean ta
 * **Validación de Wilks' Lambda:** Evaluación de la significancia de la partición mediante la medición de la reducción de la varianza no explicada tras la reducción de dimensionalidad por **PCA** (Análisis de Componentes Principales).
 
 > **Nota:** La arquitectura está optimizada para la reproducibilidad, permitiendo que cualquier ajuste en los hiperparámetros de segmentación se refleje automáticamente en los reportes de validación.
+
+### Resultados del Clustering (PAM/Silhouette)
+Antes de las pruebas, el log muestra una pequeña tabla de resumen del algoritmo **PAM** (Partitioning Around Medoids):
+```text
+Cluster,Size,Ave. Sil. Width
+1,8,0.25
+2,15,0.36
+3,2,0.43
+```
+> **¿Qué significa?** El **Cluster 3** es el más "sólido" o cohesivo (tiene el ancho de silueta más alto, **0.43**), aunque solo tiene 2 países. El **Cluster 2** es el más grande con 15 países y una estructura aceptable (0.36). En general, valores cercanos a 0.5 sugieren una estructura razonable en los datos.
+
+### Ejecución de Pruebas con `testthat`
+Parte vital del script `04_test_clustering.R`. El resultado final fue:
+`[ FAIL 0 | WARN 0 | SKIP 0 | PASS 7 ]`
+Esto significa que pasó las 7 pruebas que programadas. Aquí el detalle de lo validado:
+
+#### A. Existencia de archivos (2 pruebas)
+    * Se confirmó que `protein_scaled.rds` (datos normalizados) y `wilks_results.rds` existen en la carpeta `Data/processed`. Si el script de preprocesamiento hubiera fallado, esta prueba te habría avisado.
+
+#### B. Integridad de los datos (2 pruebas)
+    * **Filas**: Se verificó que hay exactamente **25 países** europeos.
+    * **Columnas**: Hay **10 variables** (las fuentes de proteína). Esto asegura que no se perdió información ni se cargó columnas extra (como IDs o nombres) en el modelo.
+
+#### C. Consistencia estadística: Wilks' Lambda (3 pruebas)
+    * **Rango**: Se validó que el estadístico $\Lambda$ de Wilks esté entre $0$ y $1$.
+    * **Tipo**: Nos aseguramos que el resultado sea un número decimal (`double`).
+    * **Tendencia**: Esta es la más importante. Se validó que `diff(wilks) < 0`.
+      * Explicación: A medida que se aumenta el número de clusters ($K$), la variabilidad no explicada debe disminuir. Si el $\Lambda$ de Wilks no bajara al aumentar $K$, el modelo de clasificación no estaría discriminando bien los grupos. Tus datos cumplen con la teoría.
 
 ---
 
