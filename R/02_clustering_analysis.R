@@ -84,7 +84,7 @@ setwd(path_base)
 # 2. Preparar el mensaje del commit
 # Usamos shQuote para que los espacios y caracteres especiales no rompan el comando
 fecha_ejecucion <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-mensaje_texto <- paste0("feat(docs): ", fecha_ejecucion, " | actualizar diagrama de flujo e integrar suite de pruebas unitarias 03_test_validation.R y 04_test_clustering.R")
+mensaje_texto <- paste0("feat(qa): ", fecha_ejecucion, " | Implementación exitosa de suite de pruebas unitarias con testthat (7/7 tests aprobados).")
 comando_commit <- paste0('git commit -m ', shQuote(mensaje_texto))
 
 # 3. Ejecutar Pipeline de Git

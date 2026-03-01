@@ -70,17 +70,17 @@ Parte vital del script `04_test_clustering.R`. El resultado final fue:
 Esto significa que pasó las 7 pruebas que programadas. Aquí el detalle de lo validado:
 
 #### A. Existencia de archivos (2 pruebas)
-    * Se confirmó que `protein_scaled.rds` (datos normalizados) y `wilks_results.rds` existen en la carpeta `Data/processed`. Si el script de preprocesamiento hubiera fallado, esta prueba te habría avisado.
+* Se confirmó que `protein_scaled.rds` (datos normalizados) y `wilks_results.rds` existen en la carpeta `Data/processed`. Si el script de preprocesamiento hubiera fallado, esta prueba te habría avisado.
 
 #### B. Integridad de los datos (2 pruebas)
-    * **Filas**: Se verificó que hay exactamente **25 países** europeos.
-    * **Columnas**: Hay **10 variables** (las fuentes de proteína). Esto asegura que no se perdió información ni se cargó columnas extra (como IDs o nombres) en el modelo.
+* **Filas**: Se verificó que hay exactamente **25 países** europeos.
+* **Columnas**: Hay **10 variables** (las fuentes de proteína). Esto asegura que no se perdió información ni se cargó columnas extra (como IDs o nombres) en el modelo.
 
 #### C. Consistencia estadística: Wilks' Lambda (3 pruebas)
-    * **Rango**: Se validó que el estadístico $\Lambda$ de Wilks esté entre $0$ y $1$.
-    * **Tipo**: Nos aseguramos que el resultado sea un número decimal (`double`).
-    * **Tendencia**: Esta es la más importante. Se validó que `diff(wilks) < 0`.
-      * Explicación: A medida que se aumenta el número de clusters ($K$), la variabilidad no explicada debe disminuir. Si el $\Lambda$ de Wilks no bajara al aumentar $K$, el modelo de clasificación no estaría discriminando bien los grupos. Tus datos cumplen con la teoría.
+* **Rango**: Se validó que el estadístico $\Lambda$ de Wilks esté entre $0$ y $1$.
+* **Tipo**: Nos aseguramos que el resultado sea un número decimal (`double`).
+* **Tendencia**: Esta es la más importante. Se validó que `diff(wilks) < 0`.
+  * Explicación: A medida que se aumenta el número de clusters ($K$), la variabilidad no explicada debe disminuir. Si el $\Lambda$ de Wilks no bajara al aumentar $K$, el modelo de clasificación no estaría discriminando bien los grupos. Tus datos cumplen con la teoría.
 
 ---
 
@@ -111,6 +111,7 @@ El sistema emplea un enfoque híbrido para garantizar que los clústeres sean ta
 Antes de las pruebas, el log muestra una pequeña tabla de resumen del algoritmo **PAM** (Partitioning Around Medoids):
 
 | Cluster | Size | Ave. Sil. Width |
+| :--- | :--- | :--- |
 | 1 | 8 | 0.25 |
 |2 | 15 | 0.36 |
 |3 | 2 | 0.43 |
@@ -121,6 +122,10 @@ Antes de las pruebas, el log muestra una pequeña tabla de resumen del algoritmo
 ---
 
 ## Registro de Cambios (Changelog)
+### [1.2.2] - 2026-03-01
+* **feat(qa)**: Implementación exitosa de suite de pruebas unitarias con `testthat` (7/7 tests aprobados).
+* **docs**: Actualización del manual técnico con métricas reales de silueta y Wilks' Lambda.
+
 ### [1.2.1] - 2026-03-01
 * **feat(test)**: Incorporación de `03_test_validation.R` para auditoría de modelos.
 * **fix(arch)**: Desacoplamiento de la lógica de pruebas de la lógica de procesamiento.
