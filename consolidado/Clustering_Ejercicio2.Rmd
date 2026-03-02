@@ -1,0 +1,126 @@
+---
+title: "Análisis de Segmentación Nutricional en Europa: Ejercicio 2"
+author: "Irwin Alberto Viteri Rambay"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    highlight: tango
+header-includes:
+  - \usepackage{xcolor}
+  - \usepackage{booktabs}
+  - \usepackage{amsmath}
+  - \usepackage[strings]{underscore}
+  - \usepackage{hyperref}
+  - \hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, 
+  results="markup", 
+  warning=FALSE, 
+  message=FALSE, 
+  comment=NA,
+  fig.path = "C:/Users/iavit/OneDrive/ESPOL/Maestria en Estadistica Aplicada/Clases Maestria en Estadistica Aplicada/Modulo 9/TEC ESTADIS AVANZ PARA MINERIA DE DATOS/METODOS DE CLASIFICACION/Taller/EJER1/consolidado/figures/"
+  )
+library(pacman)
+p_load(tidyverse, cluster, factoextra, knitr, gridExtra)
+
+# --- Configuración de Rutas (Relativas para portabilidad) ---
+path_raw <- "C:/Users/iavit/OneDrive/ESPOL/Maestria en Estadistica Aplicada/Clases Maestria en Estadistica Aplicada/Modulo 9/TEC ESTADIS AVANZ PARA MINERIA DE DATOS/METODOS DE CLASIFICACION/Taller/EJER1/Data/raw/protein.txt"
+```
+\newpage
+# Introducción
+El presente informe técnico aborda el problema de la segmentación de 25 naciones europeas basándose en sus patrones de consumo de proteínas en 9 grupos alimenticios. Utilizando técnicas de **Aprendizaje No Supervisado**, se busca identificar estructuras latentes que agrupen países con dietas similares, permitiendo una interpretación geográfica y nutricional robusta. El flujo de trabajo abarca desde el preprocesamiento con escalamiento Z-score hasta la validación avanzada mediante el estadístico $\Lambda$ de Wilks.
+
+# Preprocesamiento y Preparación de Datos
+Para garantizar que las variables con mayores magnitudes no sesguen los algoritmos de distancia, se aplicó una estandarización de los datos.
+```{r 01_data_preprocessing}
+# Ingesta de datos crudos
+protein_raw <- read.table(path_raw, header = TRUE, sep = "", check.names = FALSE)
+
+# Limpieza de cabeceras mediante Regex
+colnames(protein_raw) <- gsub("\\.", "", colnames(protein_raw))
+
+# Selección de variables numéricas y escalado (Z-score)
+protein_numeric <- protein_raw[, 4:13]
+rownames(protein_numeric) <- protein_raw$country
+protein_scaled <- scale(protein_numeric)
+```
+
+# (a) Análisis de Clústeres Jerárquicos Aglomerativos
+Se evaluaron cuatro métodos de vinculación para determinar la estructura de agrupación más natural de los datos.
+
+```{r clustering_analysis, fig.height=8, fig.width=10}
+dist_matrix <- dist(protein_scaled, method = "euclidean")
+methods <- c("average", "single", "complete", "ward.D2")
+
+par(mfrow = c(2, 2))
+for(m in methods) {
+  hc <- hclust(dist_matrix, method = m)
+  plot(hc, main = paste("Método:", m), xlab = "Países", sub = "", cex = 0.7)
+}
+```
+
+# Interpretación y Selección del Método
+* **Decisión de Clústeres**: Basado en los dendrogramas (especialmente el de Ward.D2 y Average), se observa una partición clara en $K=3$ **clústeres**.
+* **Interpretación de Grupos ($K=3$)**:
+  1. **Bloque Escandinavo/Europa Occidental**: Países con alto consumo de leche y pescado (e.g., Noruega, Dinamarca).
+  2. **Bloque Mediterráneo**: Caracterizado por el consumo de frutas, vegetales y aceite/frutos secos (e.g., España, Portugal, Grecia).
+  3. **Bloque de Europa del Este**: Mayor dependencia de cereales y carnes específicas (e.g., Bulgaria, Rumania).
+* **Método Preferido**: Se selecciona **Ward.D2**. A diferencia de Single Linkage (que presenta encadenamiento), Ward maximiza la cohesión interna minimizando la varianza total dentro de los grupos, facilitando una interpretación espacial más nítida.
+
+# (b) Particionamiento Alrededor de Medoides (PAM)
+Utilizando $K=3$, aplicamos el algoritmo PAM, el cual es más robusto ante valores atípicos que K-means tradicional.
+```{r PCA}
+set.seed(42)
+pam_res <- pam(protein_scaled, k = 3)
+
+# Visualización en el Espacio de Componentes Principales (PCA)
+fviz_cluster(pam_res, data = protein_scaled, 
+             main = "Segmentación PAM en Espacio PCA (Dim1: 41.3%, Dim2: 17.4%)")
+```
+
+# Análisis de Siluetas
+La métrica de silueta mide qué tan bien se ajusta cada país a su clúster asignado.
+
+```{r silhouette}
+fviz_silhouette(pam_res)
+```
+
+\textcolor{blue!70!black}{El ancho de silueta promedio es de 0.33. El Clúster 3 presenta la mayor solidez (0.43), mientras que el Clúster 2 es el más extenso con 15 países. Un valor positivo en casi todas las observaciones confirma que la estructura de 3 grupos es adecuada, aunque algunos países en las fronteras de los grupos presentan siluetas bajas, indicando perfiles dietéticos híbridos.}
+
+# (c) K-means y Optimización vía Wilks' Lambda
+Para validar el número óptimo de clústeres desde una perspectiva de varianza multivariante, se utilizó el estadístico $\Lambda$ de Wilks tras una reducción de dimensionalidad con PCA.
+```{r calculate_wilks}
+# Reducción de dimensionalidad para evitar problemas de rango en MANOVA
+pca_res <- prcomp(protein_scaled)
+data_pca <- pca_res$x[, 1:4]
+
+calculate_wilks <- function(k, data) {
+  set.seed(123)
+  km <- kmeans(data, centers = k, nstart = 25)
+  fit <- manova(as.matrix(data) ~ as.factor(km$cluster))
+  return(summary(fit, test = "Wilks")$stats[1, 2])
+}
+
+ks <- 2:6
+wilks_stats <- sapply(ks, function(x) calculate_wilks(x, data_pca))
+
+# Visualización del Criterio de Wilks
+plot(ks, wilks_stats, type = "b", pch = 19, col = "darkblue",
+     xlab = "Número de Clústeres (k)", ylab = "Wilks' Lambda",
+     main = "Optimización de Clústeres: Criterio de Wilks")
+```
+\textcolor{blue!70!black}{El estadístico $\Lambda$ de Wilks disminuye monótonamente conforme aumenta $K$. Se observa un "codo" o cambio de pendiente significativo al pasar de $K=2$ a $K=3$ (donde $\Lambda$ cae de aproximadamente 0.14 a 0.04). Esto garantiza que una partición de 3 grupos explica una porción sustancial de la varianza multivariante, validando estadísticamente la elección realizada en los puntos previos.}
+
+# Conclusiones
+1. **Consistencia**: Tanto el método jerárquico (Ward.D2) como el particionamiento (PAM) sugieren que la estructura óptima para el consumo de proteínas en Europa es de **3 grupos**.
+2. **Robustez**: La validación con Wilks' Lambda confirma que $K=3$ es el punto de equilibrio donde se maximiza la discriminación entre grupos sin sobre-segmentar los datos.
+3. **Hallazgo Nutricional**: La división refleja la geografía europea (Norte/Oeste, Mediterráneo y Este), demostrando que la disponibilidad de alimentos y la cultura regional siguen siendo los principales predictores del perfil proteico nacional.
+
+# Repositorio
+* [iviterirambay/Clustering_Ejercicio_2](https://github.com/iviterirambay/Clustering_Ejercicio_2)
